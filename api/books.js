@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
-    
+
     try {
         if (req.method === 'GET') {
             const result = await turso.execute('SELECT * FROM books ORDER BY title ASC');
@@ -62,11 +62,13 @@ export default async function handler(req, res) {
             if (!bookId) return res.status(400).json({ error: 'Book ID is required' });
 
             const result = await turso.execute({ sql: 'SELECT publicId FROM books WHERE id = ?', args: [bookId] });
-            
+
             if (result.rows.length > 0) {
                 const publicId = result.rows[0].publicId;
+                // This part is correct. It tells Cloudinary to look for a "raw" file, not an "image".
                 await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
             }
+
 
             await turso.execute({ sql: 'DELETE FROM books WHERE id = ?', args: [bookId] });
             return res.status(200).json({ message: 'Book deleted successfully' });
