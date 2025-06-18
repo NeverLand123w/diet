@@ -48,7 +48,14 @@ export default async function handler(req, res) {
     const form = new multiparty.Form();
 
     form.parse(req, async (err, fields, files) => {
-        if (err || !files.excelFile || files.excelFile.length === 0) {
+        // --- V V V MODIFY THIS ERROR HANDLING BLOCK V V V ---
+        if (err) {
+            console.error('Multiparty parsing error:', err);
+            return res.status(500).json({ error: 'Failed to parse form data.', details: err.message });
+        }
+
+        if (!files.excelFile || files.excelFile.length === 0) {
+            console.error('File part "excelFile" not found in the request. Available file parts:', Object.keys(files));
             return res.status(400).json({ error: 'Excel file is required.' });
         }
 

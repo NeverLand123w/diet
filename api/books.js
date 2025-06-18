@@ -32,8 +32,12 @@ async function parseJsonBody(req) {
 
 // --- MAIN API HANDLER ---
 export default async function handler(req, res) {
+    // --- V V V ADD THIS LOGGING CODE V V V ---
+    console.log(`[LOG] Request Received. METHOD: ${req.method}, URL: ${req.url}`);
+    // --- ^ ^ ^ END OF LOGGING CODE ^ ^ ^ ---
+
     // Set CORS headers for all responses
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Or a specific domain
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
