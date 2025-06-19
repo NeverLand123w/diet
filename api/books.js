@@ -70,41 +70,47 @@ export default async function handler(req, res) {
 
     try {
         if (req.method === 'GET') {
-            // --- The browser sends "history of india" as "history+of+india" in req.query.q.
-            // This logic correctly decodes it back into spaces and is UNCHANGED.
-            const rawSearchTerm = req.query.q || '';
-            const searchTerm = decodeURIComponent(rawSearchTerm.replace(/\+/g, ' '));
-            // ---
+            const { q, page = 1, limit = 12 } = req.query; // Default to 12 items per page
+            const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-            console.log(`[API_DEBUG] 1. Received search request. Raw Term: "${rawSearchTerm}", Decoded Term: "${searchTerm}"`);
+            let booksResult, totalResult;
 
-            if (searchTerm.trim()) {
+            if (q && q.trim()) {
+                // Handle a search query (with pagination)
+                const searchTerm = decodeURIComponent(q.replace(/\+/g, ' '));
                 const likeQuery = '%' + searchTerm.trim().toLowerCase().split(/\s+/).join('%') + '%';
+                const searchSql = `WHERE LOWER(title) LIKE ? OR LOWER(author) LIKE ? OR LOWER(bookNumber) LIKE ?`;
 
-                // --- THIS IS THE FIX ---
-                // We change the SQL statement to select ALL columns using '*'
-                // instead of just specific ones. This ensures 'pdfUrl' is included.
-                const sql = `SELECT * FROM books 
-                             WHERE LOWER(title) LIKE ? OR LOWER(author) LIKE ? OR LOWER(bookNumber) LIKE ? 
-                             ORDER BY id DESC`;
-                // --- END OF FIX ---
+                booksResult = await turso.execute({
+                    sql: `SELECT * FROM books ${searchSql} ORDER BY id DESC LIMIT ? OFFSET ?`,
+                    args: [likeQuery, likeQuery, likeQuery, parseInt(limit, 10), offset]
+                });
+                totalResult = await turso.execute({
+                    sql: `SELECT COUNT(*) as count FROM books ${searchSql}`,
+                    args: [likeQuery, likeQuery, likeQuery]
+                });
 
-                const args = [likeQuery, likeQuery, likeQuery];
-
-                console.log(`[API_DEBUG] 2. Generated 'likeQuery':`, likeQuery);
-                console.log(`[API_DEBUG] 3. SQL statement sent to Turso:`, sql);
-                console.log(`[API_DEBUG] 4. Arguments sent to Turso:`, args);
-
-                const result = await turso.execute({ sql, args });
-
-                console.log(`[API_DEBUG] 5. Turso database returned ${result.rows.length} rows.`);
-                return res.status(200).json({ data: result.rows });
             } else {
-                // This part was already correct and is UNCHANGED.
-                console.log(`[API_DEBUG] No search term provided. Fetching all books.`);
-                const result = await turso.execute('SELECT * FROM books ORDER BY id DESC');
-                return res.status(200).json({ data: result.rows });
+                // Handle fetching the full list (with pagination)
+                booksResult = await turso.execute({
+                    sql: 'SELECT * FROM books ORDER BY id DESC LIMIT ? OFFSET ?',
+                    args: [parseInt(limit, 10), offset]
+                });
+                totalResult = await turso.execute('SELECT COUNT(*) as count FROM books');
             }
+
+            const totalBooks = totalResult.rows[0].count;
+            const totalPages = Math.ceil(totalBooks / parseInt(limit, 10));
+
+            // Return the books for the current page, plus pagination info
+            return res.status(200).json({
+                data: booksResult.rows,
+                pagination: {
+                    page: parseInt(page, 10),
+                    totalPages,
+                    totalBooks
+                }
+            });
         }
 
         authenticateAdmin(req);
@@ -129,27 +135,22 @@ export default async function handler(req, res) {
             const bookId = req.query.id;
             if (!bookId) return res.status(400).json({ error: 'Book ID is required for an update.' });
 
-            // This line gets the data from the frontend request
             const rawData = await parseJsonBody(req);
 
-            // --- SANITIZE THE INPUTS ---
-            // If a field is missing in the request, its value will be 'undefined'.
-            // We ensure we pass 'null' to the database instead, which is safe.
-            const title = rawData.title; // Assumed to always exist for an update
+            // Sanitize the inputs we are actually using
+            const title = rawData.title;
             const author = rawData.author ?? null;
             const bookNumber = rawData.bookNumber ?? null;
             const pdfUrl = rawData.pdfUrl ?? null;
             const publicId = rawData.publicId ?? null;
             const oldPublicId = rawData.oldPublicId ?? null;
-            // The `??` is the "nullish coalescing operator". It says: "use the value on the left
-            // if it's not null or undefined, otherwise use the value on the right".
 
-            // If replacing a PDF, delete the old file from Cloudinary
+            // If replacing a PDF, delete the old one from Cloudinary
             if (oldPublicId) {
                 await cloudinary.uploader.destroy(oldPublicId, { resource_type: "raw" });
             }
 
-            // Use COALESCE to robustly update only the fields that are provided by the frontend
+            // The simplified and corrected SQL UPDATE statement
             await turso.execute({
                 sql: `UPDATE books SET 
                         title = COALESCE(?, title), 
