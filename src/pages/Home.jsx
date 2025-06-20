@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+import { useSearchParams, Link } from 'react-router-dom';
+
+
 // ================================================================================= //
 // 1. BookCard Component (now defined directly inside the Home.jsx file)
 // ================================================================================= //
+
+
 const BookCard = ({ book }) => {
     return (
         <div className="bg-white rounded-lg shadow-lg overflow-hidden transition-transform transform hover:-translate-y-1 h-full flex flex-col justify-between">
@@ -37,7 +42,7 @@ const BookCard = ({ book }) => {
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     // Don't show pagination if there's only one page or no pages
     if (totalPages <= 1) {
-        return null; 
+        return null;
     }
 
     const pageNumbers = [];
@@ -64,11 +69,10 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
                     <li key={number}>
                         <button
                             onClick={() => onPageChange(number)}
-                            className={`flex items-center justify-center px-4 h-10 leading-tight border border-gray-300 ${
-                                currentPage === number
-                                    ? 'z-10 text-indigo-600 border-indigo-500 bg-indigo-50'
-                                    : 'text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-700'
-                            }`}
+                            className={`flex items-center justify-center px-4 h-10 leading-tight border border-gray-300 ${currentPage === number
+                                ? 'z-10 text-indigo-600 border-indigo-500 bg-indigo-50'
+                                : 'text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-700'
+                                }`}
                         >
                             {number}
                         </button>
@@ -90,93 +94,176 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 };
 
 
+// 3. New Carousel Component
 // ================================================================================= //
-// 3. Main Home Component Logic
+const BookCarousel = ({ category }) => {
+    // Only show the carousel if the category has books
+    if (!category || !category.books || category.books.length === 0) {
+        return null;
+    }
+    return (
+        <section className="mb-12">
+            <div className="flex justify-between items-baseline mb-4">
+                <h2 className="text-3xl font-bold text-gray-800">{category.name}</h2>
+                <Link to={`/?category=${category.id}`} className="text-sm text-indigo-600 hover:underline">View all →</Link>
+            </div>
+            <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4">
+                {category.books.slice(0, 10).map(book => ( // Show up to 10 books in the carousel
+                    <div key={book.id} className="w-72 md:w-80 flex-shrink-0">
+                        <BookCard book={book} />
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+};
+
+
+// ================================================================================= //
+// 4. Main Home Component Logic
 // ================================================================================= //
 const Home = () => {
-    const [books, setBooks] = useState([]);
+    // State for all data
+    const [allBooks, setAllBooks] = useState([]);
+    const [filteredBooks, setFilteredBooks] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    
-    const fetchData = async (query = '', page = 1) => {
-        setLoading(true);
-        try {
-            const response = await axios.get('/api/books', {
-                params: {
-                    q: query,
-                    page: page,
-                    limit: 12 // Request 12 books per page
-                }
-            });
-            setBooks(response.data.data);
-            setPagination(response.data.pagination);
-        } catch (error) {
-            console.error("Failed to fetch books:", error);
-            setBooks([]);
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    // Fetch initial data on first load
+    let [searchParams, setSearchParams] = useSearchParams();
+    const currentPage = parseInt(searchParams.get('page') || '1', 10);
+    const currentCategory = searchParams.get('category');
+    const currentSearch = searchParams.get('q');
+
+    const [searchInput, setSearchInput] = useState(currentSearch || '');
+
+    // Effect to fetch data whenever URL parameters change
     useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // For the main filtered grid and pagination
+                const booksResponse = await axios.get('/api/books', {
+                    params: {
+                        q: currentSearch || '',
+                        categoryId: currentCategory || '',
+                        page: currentPage,
+                        limit: 12, // Items per page for the main grid
+                    }
+                });
+                setFilteredBooks(booksResponse.data.data);
+                setPagination(booksResponse.data.pagination);
+
+                // For the carousels and category list, only fetch them if not already loaded
+                if (categories.length === 0) {
+                    const [catsRes, allBooksRes] = await Promise.all([
+                        axios.get('/api/categories'),
+                        axios.get('/api/books', { params: { limit: 100 } }) // Get up to 100 books for carousels
+                    ]);
+                    setCategories(catsRes.data.data);
+                    setAllBooks(allBooksRes.data.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch library data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchData();
-    }, []);
+    }, [searchParams]); // Re-run this effect when the URL changes
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
-        fetchData(searchQuery, 1);
+        const newParams = { q: searchInput, page: '1' };
+        // This will clear any 'category' param and start a new search
+        setSearchParams(newParams);
+    };
+
+    const handleClearFilters = () => {
+        setSearchInput('');
+        setSearchParams({ page: '1' });
+    };
+
+    const handleCategorySelect = (categoryId) => {
+        setSearchParams({ category: categoryId, page: '1' }); // Set category, reset page and clear search
     };
 
     const handlePageChange = (newPage) => {
-        // Prevent going to invalid pages
-        if (newPage < 1 || newPage > pagination.totalPages) {
-            return;
-        }
-        fetchData(searchQuery, newPage);
+        if (newPage < 1 || newPage > pagination.totalPages) return;
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set('page', newPage);
+        setSearchParams(newParams);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleClearSearch = () => {
-        setSearchQuery('');
-        fetchData('', 1);
-    };
+    // --- Data processing for carousels ---
+    const booksByCategories = categories.map(category => ({
+        ...category,
+        books: allBooks.filter(book => book.category_ids?.toString().split(',').includes(String(category.id)))
+    }));
 
     return (
         <div className="space-y-8">
-            {/* --- Search Bar Section --- */}
-            <div className="p-6 bg-white rounded-lg shadow-md text-center">
-                <h1 className="text-3xl font-bold mb-4 text-gray-800">Explore Our Library</h1>
-                <p className="text-gray-600 mb-6">Search our collection by title or author.</p>
-                <form onSubmit={handleSearchSubmit} className="flex max-w-2xl mx-auto">
+            <h1 className="text-4xl font-bold text-gray-900 text-center">Welcome to the Library</h1>
+
+            {/* NEW: Combined Search and Filter section */}
+            <div className="p-6 bg-white rounded-lg shadow-md sticky top-16 z-10">
+                <form onSubmit={handleSearchSubmit} className="flex max-w-3xl mx-auto mb-4">
                     <input
                         type="text"
-                        placeholder="e.g., The Great Gatsby..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="flex-grow w-full px-4 py-2 border border-r-0 border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Search by title, author, or book number..."
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="flex-grow w-full px-4 py-2 border border-r-0 border-gray-300 rounded-l-md"
                     />
-                    <button type="submit" className="bg-indigo-600 text-white font-bold py-2 px-6 rounded-r-md hover:bg-indigo-700">
+                    <button type="submit" className="bg-indigo-600 text-white font-bold py-2 px-6 rounded-r-md">
                         Search
                     </button>
                 </form>
-                {searchQuery && (
-                    <button onClick={handleClearSearch} className="mt-4 text-sm text-gray-500 hover:text-indigo-600">
-                        Clear search and view all books
+
+                <div className="flex flex-wrap justify-center gap-2">
+                    <button onClick={handleClearFilters} className={`px-4 py-2 rounded-full text-sm font-medium ${!currentCategory && !currentSearch ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>
+                        All
                     </button>
-                )}
+                    {categories.map(cat => (
+                        <button key={cat.id} onClick={() => handleCategorySelect(cat.id)} className={`px-4 py-2 rounded-full text-sm font-medium ${cat.id == currentCategory ? 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>
+                            {cat.name}
+                        </button>
+                    ))}
+                </div>
             </div>
-            
-            {/* --- Library Grid and Pagination --- */}
-            <section>
-                {loading ? (
-                    <div className="text-center p-10 text-gray-500">Loading...</div>
-                ) : (
-                    books.length > 0 ? (
+
+            {/* Display category carousels only if no filter is active */}
+            {!currentCategory && !currentSearch && (
+                <div className="space-y-12">
+                    {booksByCategories.map(cat => <BookCarousel key={cat.id} category={cat} />)}
+                </div>
+            )}
+
+            {/* --- Category/Search/Paginated Results Grid --- */}
+            <section className="pt-8">
+                <div className="p-6 bg-white rounded-lg shadow-md mb-8">
+                    <h2 className="text-2xl font-bold mb-4">
+                        {currentCategory ? categories.find(c => c.id == currentCategory)?.name : 'All Books'}
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setSearchParams({ page: '1' })} className={`px-4 py-2 rounded-full text-sm font-medium ${!currentCategory ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                            All Categories
+                        </button>
+                        {categories.map(cat => (
+                            <button key={cat.id} onClick={() => handleCategorySelect(cat.id)} className={`px-4 py-2 rounded-full text-sm font-medium ${cat.id == currentCategory ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                                {cat.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {loading ? (<div className="text-center p-10">Loading...</div>) : (
+                    filteredBooks.length > 0 ? (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                {books.map(book => <BookCard key={book.id} book={book} />)}
+                                {filteredBooks.map(book => <BookCard key={book.id} book={book} />)}
                             </div>
                             <Pagination
                                 currentPage={pagination.page}
@@ -184,11 +271,7 @@ const Home = () => {
                                 onPageChange={handlePageChange}
                             />
                         </>
-                    ) : (
-                        <p className="text-center p-10 text-gray-500">
-                            No books found for your query. Please try different keywords.
-                        </p>
-                    )
+                    ) : (<p className="text-center p-10 text-gray-500">No books found in this category.</p>)
                 )}
             </section>
         </div>
