@@ -118,77 +118,100 @@ export default async function handler(req, res) {
         // All subsequent routes are protected by admin authentication
         authenticateAdmin(req);
 
-        if (req.method === 'POST' && req.url.includes('/bulk-import')) {
-            const booksToImport = await parseJsonBody(req);
+        if (req.method === 'POST') {
+            const { title, author, bookNumber, pdfUrl, publicId, categoryIds = [] } = await parseJsonBody(req);
+            if (!title) return res.status(400).json({ error: "Title is a required field." });
+
             const tx = await turso.transaction('write');
             try {
-                for (const book of booksToImport) {
-                    let categoryId = null;
-                    if (book.categoryName) {
-                        let catRes = await tx.execute({ sql: 'SELECT id FROM categories WHERE name = ?', args: [book.categoryName] });
-                        if (catRes.rows.length === 0) {
-                            const newCatRes = await tx.execute({ sql: 'INSERT INTO categories (name) VALUES (?) RETURNING id', args: [book.categoryName] });
-                            categoryId = newCatRes.rows[0].id;
-                        } else {
-                            categoryId = catRes.rows[0].id;
-                        }
-                    }
+                const bookInsertResult = await tx.execute({
+                    sql: 'INSERT INTO books (title, author, bookNumber, pdfUrl, publicId) VALUES (?, ?, ?, ?, ?)',
+                    args: [title, author || null, bookNumber || null, pdfUrl || null, publicId || null]
+                });
 
-                    let bookId = null;
-                    const bookRes = await tx.execute({ sql: 'SELECT id FROM books WHERE bookNumber = ?', args: [book.bookNumber] });
+                // --- THE FIX ---
+                // Convert the BigInt result to a standard JavaScript Number.
+                const bookId = Number(bookInsertResult.lastInsertRowid);
+                // --- END OF FIX ---
 
-                    // Use `book.author ?? null` to safely handle missing author field
-                    const author = book.author ?? null;
-
-                    if (bookRes.rows.length > 0) {
-                        bookId = bookRes.rows[0].id;
+                if (bookId > 0 && Array.isArray(categoryIds) && categoryIds.length > 0) {
+                    for (const categoryId of categoryIds) {
                         await tx.execute({
-                            sql: 'UPDATE books SET title = ?, author = ? WHERE id = ?',
-                            args: [book.title, author, bookId]
+                            sql: 'INSERT INTO book_categories (book_id, category_id) VALUES (?, ?)',
+                            args: [bookId, parseInt(categoryId, 10)]
                         });
-                    } else {
-                        const newBookRes = await tx.execute({
-                            sql: 'INSERT INTO books (title, author, bookNumber) VALUES (?, ?, ?)',
-                            args: [book.title, author, book.bookNumber]
-                        });
-                        bookId = newBookRes.lastInsertRowid;
-                    }
-
-                    if (bookId && categoryId) {
-                        await tx.execute({ sql: 'DELETE FROM book_categories WHERE book_id = ?', args: [bookId] });
-                        await tx.execute({ sql: 'INSERT INTO book_categories (book_id, category_id) VALUES (?, ?)', args: [bookId, categoryId] });
                     }
                 }
-                await tx.commit();
-                return res.status(200).json({ message: `Successfully imported/updated ${booksToImport.length} books.` });
 
-            } catch (err) { /* ... rollback and error handling ... */ }
+                await tx.commit();
+                return res.status(201).json({ message: 'Book created successfully' });
+            } catch (err) {
+                console.error("[POST_ERROR] Transaction failed:", err);
+                await tx.rollback();
+                throw err;
+            }
         }
 
         if (req.method === 'PUT') {
             const bookId = req.query.id;
-            const { title, author, bookNumber, pdfUrl, publicId, oldPublicId, categoryIds } = await parseJsonBody(req);
+            if (!bookId) return res.status(400).json({ error: 'Book ID is required.' });
+
+            const payload = await parseJsonBody(req);
 
             const tx = await turso.transaction('write');
             try {
-                await tx.execute({
-                    sql: `UPDATE books SET title = ?, author = ?, bookNumber = ? WHERE id = ?`,
-                    args: [title, author, bookNumber, bookId]
-                });
-                if (oldPublicId && pdfUrl) { await cloudinary.uploader.destroy(oldPublicId, { resource_type: "raw" }); }
-                if (pdfUrl) { await tx.execute({ sql: 'UPDATE books SET pdfUrl = ?, publicId = ? WHERE id = ?', args: [pdfUrl, publicId, bookId] }) }
+                // --- STEP 1: Determine the final state of PDF fields ---
+                let finalPdfUrl = payload.pdfUrl;
+                let finalPublicId = payload.publicId;
 
-                if (Array.isArray(categoryIds)) {
+                // Scenario: User clicked "Remove PDF".
+                // The frontend sends pdfUrl: null and an oldPublicId.
+                if (payload.pdfUrl === null && payload.oldPublicId) {
+                    await cloudinary.uploader.destroy(payload.oldPublicId, { resource_type: "raw" });
+                    // Final state is NULL for PDF fields.
+                    finalPdfUrl = null;
+                    finalPublicId = null;
+                }
+                // Scenario: User uploaded a NEW file to replace an old one.
+                else if (payload.pdfUrl && payload.oldPublicId) {
+                    await cloudinary.uploader.destroy(payload.oldPublicId, { resource_type: "raw" });
+                    // Final state is the new URL/ID. (already set in finalPdfUrl/finalPublicId)
+                }
+
+                // --- STEP 2: Execute a SINGLE, definitive UPDATE statement for the book ---
+                await tx.execute({
+                    sql: `UPDATE books SET 
+                            title = ?, 
+                            author = ?, 
+                            bookNumber = ?,
+                            pdfUrl = ?,
+                            publicId = ?
+                          WHERE id = ?`,
+                    args: [
+                        payload.title,
+                        payload.author ?? null,
+                        payload.bookNumber ?? null,
+                        finalPdfUrl,  // Use the final calculated value
+                        finalPublicId, // Use the final calculated value
+                        bookId
+                    ],
+                });
+
+                // --- STEP 3: Handle category updates (this logic is correct) ---
+                if (Array.isArray(payload.categoryIds)) {
                     await tx.execute({ sql: 'DELETE FROM book_categories WHERE book_id = ?', args: [bookId] });
-                    if (categoryIds.length > 0) {
-                        for (const categoryId of categoryIds) {
+                    if (payload.categoryIds.length > 0) {
+                        for (const categoryId of payload.categoryIds) {
                             await tx.execute({ sql: 'INSERT INTO book_categories (book_id, category_id) VALUES (?, ?)', args: [bookId, categoryId] });
                         }
                     }
                 }
+
                 await tx.commit();
-                return res.status(200).json({ message: 'Book updated' });
+                return res.status(200).json({ message: 'Book updated successfully.' });
+
             } catch (err) {
+                console.error("[PUT_ERROR] Transaction failed:", err);
                 await tx.rollback();
                 throw err;
             }

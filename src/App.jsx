@@ -24,9 +24,9 @@ function App() {
     };
 
     return (
-        <div className="bg-gray-100 min-h-screen font-sans">
-            <nav className="bg-white shadow-md sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div data-scroll data-scroll-section className="bg-gray-100 min-h-screen font-sans">
+            <nav className="bg-white shadow-md sticky top-0 z-999">
+                <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex-shrink-0">
                             <Link to="/" className="text-2xl font-bold text-indigo-600 hover:text-indigo-800">Online Library</Link>
@@ -50,7 +50,7 @@ function App() {
                     </div>
                 </div>
             </nav>
-            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <main data-scroll data-scroll-section className="w-full">
                 <Routes>
                     <Route path="/" element={<Home />} />
                     {/* --- THIS IS THE CORRECT WAY TO RENDER LOGIN --- */}

@@ -48,10 +48,10 @@ export default async function handler(req, res) {
             const result = await turso.execute('SELECT * FROM categories ORDER BY name ASC');
             return res.status(200).json({ data: result.rows });
         }
-        
+
         // All other methods are for admins only
         authenticateAdmin(req);
-        
+
         if (req.method === 'POST') {
             const { name } = await parseJsonBody(req);
             if (!name || !name.trim()) return res.status(400).json({ error: 'Category name is required.' });
@@ -63,13 +63,63 @@ export default async function handler(req, res) {
         }
 
         if (req.method === 'PUT') {
-            const { id, name } = await parseJsonBody(req);
-            if (!id || !name || !name.trim()) return res.status(400).json({ error: 'ID and name are required.' });
-            await turso.execute({
-                sql: 'UPDATE categories SET name = ? WHERE id = ?',
-                args: [name.trim(), id]
-            });
-            return res.status(200).json({ message: 'Category renamed' });
+            const bookId = req.query.id;
+            if (!bookId) return res.status(400).json({ error: 'Book ID required for update.' });
+
+            const { title, author, bookNumber, pdfUrl, publicId, oldPublicId, categoryIds } = await parseJsonBody(req);
+
+            const tx = await turso.transaction('write');
+            try {
+                // --- Logic for DELETING an existing PDF ---
+                // If the user sent pdfUrl: null, they want to remove the existing file.
+                // We use 'oldPublicId' as a safeguard to know what to delete.
+                if (pdfUrl === null && publicId === null && oldPublicId) {
+                    // 1. Delete the file from Cloudinary
+                    await cloudinary.uploader.destroy(oldPublicId, { resource_type: "raw" });
+
+                    // 2. Clear the PDF columns in the database for this book
+                    await tx.execute({
+                        sql: 'UPDATE books SET pdfUrl = NULL, publicId = NULL WHERE id = ?',
+                        args: [bookId]
+                    });
+                }
+
+                // Logic for ADDING or REPLACING a PDF
+                // If a new pdfUrl is provided, update the columns.
+                if (pdfUrl && publicId) {
+                    // If replacing, delete the old file from Cloudinary first
+                    if (oldPublicId) {
+                        await cloudinary.uploader.destroy(oldPublicId, { resource_type: "raw" });
+                    }
+                    await tx.execute({
+                        sql: 'UPDATE books SET pdfUrl = ?, publicId = ? WHERE id = ?',
+                        args: [pdfUrl, publicId, bookId]
+                    });
+                }
+
+                // Logic for updating text details (unchanged)
+                await tx.execute({
+                    sql: `UPDATE books SET title = ?, author = ?, bookNumber = ? WHERE id = ?`,
+                    args: [title, author, bookNumber, bookId]
+                });
+
+                // Logic for updating categories (unchanged)
+                if (Array.isArray(categoryIds)) {
+                    await tx.execute({ sql: 'DELETE FROM book_categories WHERE book_id = ?', args: [bookId] });
+                    if (categoryIds.length > 0) {
+                        for (const categoryId of categoryIds) {
+                            await tx.execute({ sql: 'INSERT INTO book_categories (book_id, category_id) VALUES (?, ?)', args: [bookId, categoryId] });
+                        }
+                    }
+                }
+
+                await tx.commit();
+                return res.status(200).json({ message: 'Book updated successfully' });
+            } catch (err) {
+                console.error("[PUT_ERROR] Transaction failed:", err);
+                await tx.rollback();
+                throw err;
+            }
         }
 
         if (req.method === 'DELETE') {
