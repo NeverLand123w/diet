@@ -1,28 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import Select from 'react-select'; // We'll use this for the category dropdowns
+import Select from 'react-select';
 import { EditBookModal } from './EditBookModal';
-import secureApi from '../services/api'; // Use our secure instance for all admin actions
+import secureApi from '../services/api';
 import * as XLSX from 'xlsx';
 
 // ================================================================================= //
-// 1. Pagination Component (Integrated for simplicity)
+// 1. INTEGRATED PAGINATION COMPONENT (ROBUST VERSION)
 // ================================================================================= //
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     if (totalPages <= 1) return null;
-    const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+    const pageNumbers = [];
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) {
+            pageNumbers.push(i);
+        }
+    } else {
+        pageNumbers.push(1);
+        if (currentPage > 3) {
+            pageNumbers.push('...');
+        }
+        if (currentPage > 2) {
+            pageNumbers.push(currentPage - 1);
+        }
+        if (currentPage !== 1 && currentPage !== totalPages) {
+            pageNumbers.push(currentPage);
+        }
+        if (currentPage < totalPages - 1) {
+            pageNumbers.push(currentPage + 1);
+        }
+        if (currentPage < totalPages - 2) {
+            pageNumbers.push('...');
+        }
+        pageNumbers.push(totalPages);
+    }
+
+    const uniquePageNumbers = [...new Set(pageNumbers)];
 
     return (
-        <nav className="flex justify-center my-8">
+        <nav className="flex justify-center my-12">
             <ul className="flex items-center -space-x-px h-10 text-base">
                 <li>
-                    <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="flex items-center ...">Prev</button>
+                    <button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="flex items-center justify-center px-4 h-10 ms-0 leading-tight text-gray-500 bg-white border border-e-0 border-gray-300 rounded-s-lg hover:bg-gray-100 disabled:opacity-50"
+                    >
+                        Prev
+                    </button>
                 </li>
-                {pageNumbers.map(number => (
-                    <li key={number}><button onClick={() => onPageChange(number)} className={`... ${currentPage === number ? '... bg-indigo-50' : '...'}`}>{number}</button></li>
+                {uniquePageNumbers.map((number, index) => (
+                    <li key={`${number}-${index}`}>
+                        {number === '...' ? (
+                            <span className="flex items-center justify-center px-4 h-10 text-gray-500 bg-white border border-gray-300">...</span>
+                        ) : (
+                            <button
+                                onClick={() => onPageChange(number)}
+                                className={`flex items-center justify-center px-4 h-10 border border-gray-300 ${currentPage === number ? 'z-10 text-indigo-600 bg-indigo-50 border-indigo-500' : 'text-gray-500 bg-white hover:bg-gray-100'
+                                    }`}
+                            >
+                                {number}
+                            </button>
+                        )}
+                    </li>
                 ))}
                 <li>
-                    <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="flex items-center ...">Next</button>
+                    <button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center justify-center px-4 h-10 leading-tight text-gray-500 bg-white border border-gray-300 rounded-e-lg hover:bg-gray-100 disabled:opacity-50"
+                    >
+                        Next
+                    </button>
                 </li>
             </ul>
         </nav>
@@ -31,338 +81,147 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
 
 // ================================================================================= //
-// 2. Main Admin Component
+// MAIN ADMIN COMPONENT
 // ================================================================================= //
 const Admin = () => {
     // --- STATE MANAGEMENT ---
     const [books, setBooks] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [editingCategory, setEditingCategory] = useState(null); // Tracks the category being renamed
-
-    const [newBook, setNewBook] = useState({ title: '', author: '', bookNumber: '' });
-    const [newBookCategories, setNewBookCategories] = useState([]); // For the 'Add Book' form dropdown
-    const [newPdfFile, setNewPdfFile] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [uploading, setUploading] = useState(false);
-
-    const [searchQuery, setSearchQuery] = useState('');
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalBooks: 0 });
+    const [isLoading, setIsLoading] = useState(true);
 
+    // UI states
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [editingCategory, setEditingCategory] = useState(null);
+    const [newBook, setNewBook] = useState({ title: '', author: '', bookNumber: '' });
+    const [newBookCategories, setNewBookCategories] = useState([]);
+    const [newPdfFile, setNewPdfFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState(0);
+    const [importTotal, setImportTotal] = useState(0);
+
+    // Filter states
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
+
+    // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBook, setEditingBook] = useState(null);
-    const [isImporting, setIsImporting] = useState(false);
-    const [importProgress, setImportProgress] = useState(0); // For the progress bar
-    const [importTotal, setImportTotal] = useState(0); // For the progress bar
 
-    // --- DATA FETCHING ---
-    const fetchData = async (query = '', page = 1) => {
+    // --- CORE DATA FETCHING ---
+    const fetchData = async (query = '', categoryId = '', page = 1) => {
         setIsLoading(true);
-        console.log(`[ADMIN_FETCH] Fetching with Query: "${query}", Page: ${page}`); // Add this for sanity check
         try {
             const [booksRes, catsRes] = await Promise.all([
-                secureApi.get('/books', { params: { q: query, page: page, limit: 10 } }),
+                secureApi.get('/books', { params: { q: query, categoryId: categoryId, page: page, limit: 8 } }),
                 secureApi.get('/categories')
             ]);
-
-            console.log('[ADMIN_FETCH] Received book data:', booksRes.data); // See what the API returns
-
             setBooks(booksRes.data?.data || []);
             setPagination(booksRes.data?.pagination || { page: 1, totalPages: 1, totalBooks: 0 });
             setCategories(catsRes.data?.data || []);
         } catch (error) {
             console.error("Error fetching admin data:", error);
-            // Don't set state on error, leave it as is
         } finally {
             setIsLoading(false);
         }
     };
+    useEffect(() => { fetchData('', '', 1); }, []);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    // --- CATEGORY HANDLERS ---
-    const handleAddCategory = async (e) => {
-        e.preventDefault();
-        if (!newCategoryName.trim()) return;
-        try {
-            await secureApi.post('/categories', { name: newCategoryName });
-            setNewCategoryName('');
-            fetchData(searchQuery, pagination.page); // Refresh data
-        } catch (error) { alert(`Failed to add category. It may already exist. (${error.response?.data?.message})`); }
-    };
-
-    const handleRenameCategory = async () => {
-        if (!editingCategory || !editingCategory.name.trim()) { setEditingCategory(null); return; }
-        try {
-            await secureApi.put('/categories', { id: editingCategory.id, name: editingCategory.name });
-            setEditingCategory(null);
-            fetchData(searchQuery, pagination.page); // Refresh data
-        } catch (error) { alert(`Failed to rename category. (${error.response?.data?.message})`); }
-    };
-
-    const handleDeleteCategory = async (categoryId) => {
-        if (window.confirm("Are you sure? This will remove the category from all books.")) {
-            try {
-                // The `data` property is important for DELETE requests with a body in axios
-                await secureApi.delete('/categories', { data: { id: categoryId } });
-                fetchData(searchQuery, pagination.page); // Refresh data
-            } catch (error) { alert("Failed to delete category."); }
-        }
-    };
-
-    // --- BOOK HANDLERS ---
-    const handleAddBook = async (e) => {
-        e.preventDefault();
-        if (!newBook.title.trim()) { alert("A title is required."); return; }
-        setUploading(true);
-        const payload = {
-            ...newBook,
-            categoryIds: newBookCategories.map(c => c.value),
-        };
-        try {
-            if (newPdfFile) {
-                const formData = new FormData();
-                formData.append('file', newPdfFile);
-                formData.append('upload_preset', 'ml_default');
-                const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/raw/upload`;
-                const cloudinaryResponse = await axios.post(CLOUDINARY_UPLOAD_URL, formData);
-                payload.pdfUrl = cloudinaryResponse.data.secure_url;
-                payload.publicId = cloudinaryResponse.data.public_id;
-            }
-            await secureApi.post('/books', payload);
-            alert("Book added successfully!");
-            // Reset form state
-            setNewBook({ title: '', author: '', bookNumber: '' });
-            setNewBookCategories([]);
-            setNewPdfFile(null);
-            document.getElementById('new-book-form').reset();
-            fetchData('', 1); // Go back to the first page to see the new book
-        } catch (error) {
-            console.error('Error adding book:', error);
-            alert(`Error: ${error.response?.data?.message || 'Could not add book.'}`);
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const handleDeleteBook = async (bookId) => {
-        if (window.confirm("Are you sure? This action is permanent.")) {
-            try {
-                // --- THE FIX ---
-                // The URL was incorrect. It should be '/books', not '/categories'.
-                await secureApi.delete(`/books?id=${bookId}`);
-
-                // Refresh the current page after a delete.
-                fetchData(searchQuery, pagination.page);
-            } catch (error) {
-                console.error("Error deleting book:", error);
-                alert(`Error: ${error.response?.data?.message || "Could not delete book."}`);
-            }
-        }
-    };
-
-    // ... inside the Admin component ...
-
-    const handleExcelImport = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setIsImporting(true);
-        setImportProgress(0); // Reset progress
-        setImportTotal(0);
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-
-                let allBooks = [];
-                for (const sheetName of workbook.SheetNames) {
-                    const worksheet = workbook.Sheets[sheetName];
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                    const formattedData = jsonData.map(row => ({
-                        title: row['Book Name'], author: row['Author'],
-                        bookNumber: row['Book number']?.toString(), categoryName: sheetName,
-                    })).filter(book => book.title && book.bookNumber);
-                    allBooks = [...allBooks, ...formattedData];
-                }
-
-                if (allBooks.length === 0) {
-                    alert("No valid book data found in the Excel file.");
-                    setIsImporting(false);
-                    return;
-                }
-
-                setImportTotal(allBooks.length);
-
-                // --- BATCHING LOGIC ---
-                const batchSize = 100; // Process 100 books per API call
-                for (let i = 0; i < allBooks.length; i += batchSize) {
-                    const batch = allBooks.slice(i, i + batchSize);
-                    console.log(`[BATCH_IMPORT] Sending batch ${i / batchSize + 1}...`);
-
-                    // The backend API is the same, we just send smaller chunks of data
-                    await secureApi.post('/books/bulk-import', batch);
-
-                    // Update the progress bar
-                    setImportProgress(prev => prev + batch.length);
-                }
-
-                alert(`Import complete! ${allBooks.length} books were processed.`);
-                fetchData('', 1); // Refresh the entire view
-
-            } catch (err) {
-                console.error("Error during batch import:", err);
-                alert(`Import failed at record ${importProgress}. Reason: ${err.response?.data?.error || err.message}. Please check your data and try again.`);
-            } finally {
-                setIsImporting(false);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-        e.target.value = null;
-    };
-
-    // All other book handlers are unchanged
-    const handleSearchSubmit = (e) => { e.preventDefault(); fetchData(searchQuery, 1); };
-    const handleClearSearch = () => { setSearchQuery(''); fetchData('', 1); };
-    const handlePageChange = (newPage) => { if (newPage >= 1 && newPage <= pagination.totalPages) fetchData(searchQuery, newPage); };
+    // --- HANDLERS ---
+    const handleAddCategory = async (e) => { e.preventDefault(); if (!newCategoryName.trim()) return; try { await secureApi.post('/categories', { name: newCategoryName }); setNewCategoryName(''); fetchData(searchQuery, selectedCategory, pagination.page); } catch (error) { alert(`Failed to add category: ${error.response?.data?.message || error.message}`); } };
+    const handleRenameCategory = async () => { if (!editingCategory?.name.trim()) { setEditingCategory(null); return; } try { await secureApi.put('/categories', editingCategory); setEditingCategory(null); fetchData(searchQuery, selectedCategory, pagination.page); } catch (error) { alert("Failed to rename category."); } };
+    const handleDeleteCategory = async (categoryId) => { if (window.confirm("Are you sure? This will remove the category from all books.")) { try { await secureApi.delete('/categories', { data: { id: categoryId } }); fetchData(searchQuery, selectedCategory, 1); } catch (error) { alert("Failed to delete category."); } } };
+    const handleDeleteBook = async (bookId) => { if (window.confirm("Are you sure?")) { try { await secureApi.delete(`/books?id=${bookId}`); fetchData(searchQuery, selectedCategory, pagination.page); } catch (error) { alert(`Error deleting book: ${error.response?.data?.message || error.message}`); } } };
+    const handleAddBook = async (e) => { e.preventDefault(); if (!newBook.title.trim()) return alert("Title is required."); setUploading(true); const payload = { ...newBook, categoryIds: newBookCategories.map(c => c.value) }; try { if (newPdfFile) { const formData = new FormData(); formData.append('file', newPdfFile); formData.append('upload_preset', 'ml_default'); const url = `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/raw/upload`; const res = await axios.post(url, formData); payload.pdfUrl = res.data.secure_url; payload.publicId = res.data.public_id; } await secureApi.post('/books', payload); alert("Book added!"); setNewBook({ title: '', author: '', bookNumber: '' }); setNewBookCategories([]); setNewPdfFile(null); document.getElementById('new-book-form')?.reset(); fetchData('', '', 1); } catch (error) { alert(`Error adding book: ${error.response?.data?.message || error.message}`); } finally { setUploading(false); } };
+    const handleExcelImport = (e) => { const file = e.target.files[0]; if (!file) return; setIsImporting(true); setImportProgress(0); setImportTotal(0); const reader = new FileReader(); reader.onload = async (event) => { try { const data = new Uint8Array(event.target.result); const workbook = XLSX.read(data, { type: 'array' }); let allBooks = []; for (const sheetName of workbook.SheetNames) { const ws = workbook.Sheets[sheetName]; const jsonData = XLSX.utils.sheet_to_json(ws); const formattedData = jsonData.map(r => ({ title: r['Book Name'], author: r['Author'], bookNumber: r['Book number']?.toString(), categoryName: sheetName })).filter(b => b.title && b.bookNumber); allBooks.push(...formattedData); } if (allBooks.length === 0) { alert("No valid data found in Excel file."); setIsImporting(false); return; } setImportTotal(allBooks.length); const batchSize = 100; for (let i = 0; i < allBooks.length; i += batchSize) { const batch = allBooks.slice(i, i + batchSize); await secureApi.post('/books/bulk-import', batch); setImportProgress(p => p + batch.length); } alert(`Import complete: ${allBooks.length} records processed.`); fetchData('', '', 1); } catch (err) { alert(`Import failed at record ${importProgress}. Error: ${err.response?.data?.error || err.message}`); } finally { setIsImporting(false); } }; reader.readAsArrayBuffer(file); e.target.value = null; };
+    const handleSearchSubmit = (e) => { e.preventDefault(); fetchData(searchQuery, selectedCategory, 1); };
+    const handleCategoryFilterChange = (e) => { const newCatId = e.target.value; setSelectedCategory(newCatId); fetchData(searchQuery, newCatId, 1); };
+    const handleClearFilters = () => { setSearchQuery(''); setSelectedCategory(''); fetchData('', '', 1); };
+    const handlePageChange = (newPage) => { if (newPage >= 1 && newPage <= pagination.totalPages) { fetchData(searchQuery, selectedCategory, newPage); window.scrollTo({ top: 0, behavior: 'smooth' }); } };
     const handleEditClick = (book) => { setEditingBook(book); setIsModalOpen(true); };
     const handleModalClose = () => { setIsModalOpen(false); setEditingBook(null); };
-    const handleModalSave = () => { handleModalClose(); fetchData(searchQuery, pagination.page); };
-
-    // Prepare options for react-select dropdowns
+    const handleModalSave = () => { handleModalClose(); fetchData(searchQuery, selectedCategory, pagination.page); };
     const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
 
     return (
-        <div className="p-4 space-y-8">
-            {/* The Edit Modal now receives the full list of categories as a prop */}
+        <div className="p-4 sm:p-6 lg:p-8 space-y-8">
             {isModalOpen && <EditBookModal book={editingBook} allCategories={categories} onClose={handleModalClose} onSave={handleModalSave} />}
+            <h1 className="text-4xl font-bold text-gray-900">Admin Dashboard</h1>
 
-            <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-
-            {/* --- NEW, ENHANCED BULK IMPORT SECTION --- */}
-            <div className="p-6 bg-white rounded-lg shadow-md">
-                <h2 className="text-2xl font-bold mb-4 text-gray-700">Bulk Import Books</h2>
-                <p className="text-sm text-gray-600 mb-3">
-                    Upload an Excel file to add or update books. This will process in batches.
-                </p>
-                <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    onChange={handleExcelImport}
-                    disabled={isImporting}
-                    className="block w-full text-sm ... file:bg-teal-50 ..."
-                />
-                {/* Progress Bar UI */}
-                {isImporting && (
-                    <div className="mt-4">
-                        <p className="text-blue-600 font-semibold text-center mb-2">
-                            Importing... Please do not close this window.
-                        </p>
-                        <div className="w-full bg-gray-200 rounded-full h-4">
-                            <div
-                                className="bg-indigo-600 h-4 rounded-full transition-all duration-300"
-                                style={{ width: `${(importProgress / importTotal) * 100}%` }}
-                            ></div>
-                        </div>
-                        <p className="text-sm text-gray-600 text-center mt-1">
-                            {importProgress} / {importTotal} books processed
-                        </p>
-                    </div>
-                )}
-            </div>
-
-            {/* --- Category Management Section --- */}
-            <div className="p-6 bg-white rounded-lg shadow-md">
-                <h2 className="text-2xl font-bold mb-4 text-gray-700">Manage Categories</h2>
-                <form onSubmit={handleAddCategory} className="flex gap-2 mb-4">
-                    <input type="text" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="flex-grow w-full px-4 py-2 border rounded-md" />
-                    <button type="submit" className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700">Add</button>
-                </form>
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                    {categories.length > 0 ? categories.map(cat => (
-                        <div key={cat.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            {editingCategory?.id === cat.id ? (
-                                <input type="text" value={editingCategory.name} onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })} onBlur={handleRenameCategory} onKeyDown={(e) => e.key === 'Enter' && handleRenameCategory()} autoFocus className="w-full px-2 py-1 border rounded-md" />
-                            ) : (<span className="flex-grow cursor-pointer" onDoubleClick={() => setEditingCategory(cat)} title="Double-click to edit">{cat.name}</span>)}
-                            <div className="flex gap-3 ml-4">
-                                <button onClick={() => setEditingCategory(cat)} className="text-sm text-blue-500 hover:underline">Rename</button>
-                                <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-500 hover:underline">Delete</button>
+            <div className="grid md:grid-cols-2 gap-8">
+                <div className="p-6 bg-white rounded-lg shadow-md">
+                    <h2 className="text-2xl font-bold mb-4 text-gray-700">Manage Categories</h2>
+                    <form onSubmit={handleAddCategory} className="flex gap-2 mb-4">
+                        <input type="text" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="flex-grow w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500" />
+                        <button type="submit" className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Add</button>
+                    </form>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                        {categories.length > 0 ? categories.map(cat => (
+                            <div key={cat.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                {editingCategory?.id === cat.id ? (
+                                    <input type="text" value={editingCategory.name} onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })} onBlur={handleRenameCategory} onKeyDown={(e) => e.key === 'Enter' && handleRenameCategory()} autoFocus className="w-full px-2 py-1 border rounded-md" />
+                                ) : (
+                                    <span className="flex-grow text-gray-800" onDoubleClick={() => setEditingCategory(cat)} title="Double-click to edit">{cat.name}</span>
+                                )}
+                                <div className="flex gap-3 ml-4 flex-shrink-0">
+                                    <button onClick={() => setEditingCategory(cat)} className="text-sm text-blue-500 hover:underline">Rename</button>
+                                    <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-500 hover:underline">Delete</button>
+                                </div>
                             </div>
-                        </div>
-                    )) : <p className="text-sm text-gray-500">No categories found. Add one above.</p>}
+                        )) : <p className="text-sm text-gray-500 text-center py-4">No categories found. Add one above.</p>}
+                    </div>
+                </div>
+
+                <div className="p-6 bg-white rounded-lg shadow-md">
+                    <h2 className="text-2xl font-bold mb-4 text-gray-700">Add a New Book</h2>
+                    <form id="new-book-form" onSubmit={handleAddBook} className="space-y-4">
+                        <input type="text" placeholder="Title*" value={newBook.title} onChange={(e) => setNewBook({ ...newBook, title: e.target.value })} required className="w-full px-4 py-2 border rounded-md" />
+                        <input type="text" placeholder="Author" value={newBook.author} onChange={(e) => setNewBook({ ...newBook, author: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
+                        <input type="text" placeholder="Book Number" value={newBook.bookNumber} onChange={(e) => setNewBook({ ...newBook, bookNumber: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Categories</label><Select isMulti options={categoryOptions} value={newBookCategories} onChange={setNewBookCategories} className="mt-1" classNamePrefix="select" placeholder="Assign categories..." /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Add PDF (Optional)</label><input type="file" accept=".pdf" onChange={(e) => setNewPdfFile(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-gray-50 hover:file:bg-gray-100" /></div>
+                        <button type="submit" disabled={uploading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400">{uploading ? 'Adding...' : 'Add Book'}</button>
+                    </form>
                 </div>
             </div>
 
-            {/* "Add a New Book" section */}
-            <div className="p-6 bg-white rounded-lg shadow-md">
-                <h2 className="text-2xl font-bold mb-4 text-gray-700">Add a New Book</h2>
-                <form id="new-book-form" onSubmit={handleAddBook} className="space-y-4">
-                    <input type="text" placeholder="Title*" value={newBook.title} onChange={(e) => setNewBook({ ...newBook, title: e.target.value })} required className="w-full px-4 py-2 border rounded-md" />
-                    <input type="text" placeholder="Author" value={newBook.author} onChange={(e) => setNewBook({ ...newBook, author: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
-                    <input type="text" placeholder="Book Number" value={newBook.bookNumber} onChange={(e) => setNewBook({ ...newBook, bookNumber: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Categories (Optional)</label>
-                        <Select isMulti options={categoryOptions} value={newBookCategories} onChange={setNewBookCategories} className="mt-1" classNamePrefix="select" placeholder="Assign one or more categories..." />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Add PDF (Optional)</label>
-                        <input type="file" accept=".pdf" onChange={(e) => setNewPdfFile(e.target.files[0])} className="w-full ... mt-1" />
-                    </div>
-                    <button type="submit" disabled={uploading} className="bg-blue-600 ...">{uploading ? 'Adding...' : 'Add Book'}</button>
-                </form>
-            </div>
+            <div className="p-6 bg-white rounded-lg shadow-md"><h2 className="text-2xl font-bold mb-4">Bulk Import Books</h2><p className="text-sm text-gray-600 mb-3">Upload an Excel file (.xlsx) to add or update books. This will process in batches.</p><input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} disabled={isImporting} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-teal-50 hover:file:bg-teal-100" />{isImporting && (<div className="mt-4"><p className="text-blue-600 font-semibold text-center mb-2">Importing... Please do not close this window.</p><div className="w-full bg-gray-200 rounded-full h-4"><div className="bg-indigo-600 h-4 rounded-full transition-all duration-300" style={{ width: `${(importProgress / importTotal) * 100}%` }}></div></div><p className="text-sm text-gray-600 text-center mt-1">{importProgress} / {importTotal} records processed</p></div>)}</div>
 
-            <div className="p-6 bg-white rounded-lg shadow-md">
-                <h2 className="text-2xl font-bold mb-4 text-gray-700">Search Books</h2>
-                {/* ... your Search form JSX ... */}
-                <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-center gap-3">
-                    <input
-                        type="text"
-                        placeholder="Search by title, author, or book number..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="flex-grow w-full px-4 py-2 border rounded-md"
-                    />
-                    <div className="flex gap-3 w-full sm:w-auto">
-                        <button type="submit" className="flex-1 bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700">Search</button>
-                        <button type="button" onClick={handleClearSearch} className="flex-1 bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600">Clear</button>
-                    </div>
-                </form>
-            </div>
-
-            {/* --- Manage Books list (Now displays categories) --- */}
             <div>
-                <h2 className="text-2xl font-bold mb-4 text-gray-700">Manage Books ({pagination.totalBooks || 0} total)</h2>
-                {isLoading ? (<div className="text-center p-10">Loading...</div>) : (books.length > 0 ? (
+                <div className="manage-top flex flex-col md:flex-row justify-between gap-4 w-full items-center mb-6 p-6 bg-white rounded-lg shadow-md">
+                    <h2 className="text-2xl font-bold text-gray-700 w-full md:w-auto flex-shrink-0">Manage Books ({pagination.totalBooks || 0} total)</h2>
+                    <div className="w-full md:w-auto md:min-w-[200px]"><select value={selectedCategory} onChange={handleCategoryFilterChange} className="w-full px-4 py-2 border rounded-md bg-white text-base"><option value="">Filter by All Categories</option>{categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}</select></div>
+                    <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full md:flex-grow"><input type="text" placeholder="Search title, author, or number..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-grow w-full px-4 py-2 border rounded-md" /><button type="button" onClick={handleClearFilters} className="bg-gray-500 text-white font-bold py-2 px-4 rounded-md">Clear</button></form>
+                </div>
+                {isLoading ? (<div className="text-center p-10">Loading books...</div>) : (books.length > 0 ? (
                     <>
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {books.map((book) => (
-                                <div key={book.id} className="flex items-center ... bg-white ...">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-semibold ...">{book.title}</p>
-                                        <p className="text-sm text-gray-500">by {book.author || 'N/A'}</p>
-                                        {book.bookNumber && <p className="text-xs text-gray-600 ...">{book.bookNumber}</p>}
+                                <div key={book.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col justify-between">
+                                    <div className="p-4 flex-grow">
+                                        <h3 className="font-bold text-lg text-gray-900 truncate" title={book.title}>{book.title}</h3>
+                                        <p className="text-sm text-gray-600">by {book.author || 'N/A'}</p>
+                                        {book.bookNumber && <p className="text-xs text-gray-500 mt-1">Number: {book.bookNumber}</p>}
                                         <div className="flex flex-wrap gap-1 mt-2">
-                                            {book.category_names?.split(',').map(name => name && <span key={name} className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">{name}</span>)}
+                                            {book.category_names?.split(',').map(name => name && <span key={name} className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">{name}</span>)}
                                         </div>
-                                        {!book.pdfUrl && <span className="text-xs font-bold ...">NO PDF</span>}
                                     </div>
-                                    <div className="flex-shrink-0 flex ...">
-                                        <button onClick={() => handleEditClick(book)} className="... bg-yellow-400 ...">Edit</button>
-                                        <button onClick={() => handleDeleteBook(book.id)} className="... bg-red-600 ...">Delete</button>
+                                    <div className={`p-4 flex items-center justify-between ${!book.pdfUrl ? 'bg-red-50' : 'bg-green-50'}`}>
+                                        <span className={`text-sm font-semibold ${!book.pdfUrl ? 'text-red-700' : 'text-green-700'}`}>{!book.pdfUrl ? 'No PDF' : 'Has PDF'}</span>
+                                        <div className="flex-shrink-0 flex gap-2">
+                                            <button onClick={() => handleEditClick(book)} className="bg-yellow-400 text-white font-bold py-1 px-3 rounded hover:bg-yellow-500">Edit</button>
+                                            <button onClick={() => handleDeleteBook(book.id)} className="bg-red-600 text-white font-bold py-1 px-3 rounded hover:bg-red-700">Delete</button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                         <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={handlePageChange} />
                     </>
-                ) : <p className="text-center p-10 text-gray-500">No books found.</p>)}
+                ) : <p className="text-center p-10 text-gray-500">No books found matching your filters.</p>)}
             </div>
         </div>
     );
 };
-
 export default Admin;

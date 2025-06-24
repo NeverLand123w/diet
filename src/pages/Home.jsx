@@ -15,19 +15,20 @@ const BookCard = ({ book }) => {
                 <h3 className="text-xl font-bold text-black mb-2" title={book.title}>
                     {book.title}
                 </h3>
+            </div>
+            <div className="p-6 pt-0">
                 <p className="text-[#000000b3]  mb-4">
                     by {book.author || 'Unknown Author'}
                 </p>
-            </div>
-            <div className="p-6 pt-0">
+
                 {book.pdfUrl ? (
                     <a href={book.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-block w-full text-center bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg">
-                        Read Now
+                        Pdf Available
                     </a>
                 ) : (
                     // DESIGN: Softer "disabled" look to match the theme.
                     <span className="inline-block w-full text-center bg-[#00000024] text-[oklch(0.52 0.05 257.3)] font-bold py-3 px-4 rounded-lg cursor-not-allowed">
-                        Coming Soon
+                        Pdf Not Available
                     </span>
                 )}
             </div>
@@ -115,7 +116,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
             <button
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="flex items-center justify-center px-4 h-10 leading-tight text-slate-600 bg-white/50 backdrop-blur-sm rounded-full shadow-sm border border-white/30 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center cursor-pointer justify-center px-4 h-10 leading-tight text-slate-600 bg-white/50 backdrop-blur-sm rounded-full shadow-sm border border-white/30 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 Prev
             </button>
@@ -139,7 +140,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
             <button
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="flex items-center justify-center px-4 h-10 leading-tight text-slate-600 bg-white/50 backdrop-blur-sm rounded-full shadow-sm border border-white/30 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center cursor-pointer justify-center px-4 h-10 leading-tight text-slate-600 bg-white/50 backdrop-blur-sm rounded-full shadow-sm border border-white/30 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 Next
             </button>
@@ -255,7 +256,7 @@ const Home = () => {
                     <form onSubmit={handleSearchSubmit} className="flex mx-auto">
                         <input
                             type="text"
-                            placeholder="Search by title, author, or book number..."
+                            placeholder="Search by title or author"
                             value={searchInput}
                             onChange={(e) => setSearchInput(e.target.value)}
                             // DESIGN: Clean input style. Transparent background and a focus ring.
