@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSearchParams, Link } from 'react-router-dom';
+import './Home.css';
 
 
 // ================================================================================= //
@@ -242,6 +243,11 @@ const Home = () => {
     return (
         // DESIGN: Main container with a decorative background gradient and blur "blobs" for visual interest.
         <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+            <div className="absolute w-full">
+                <img src="./images/diet.jpg" className="w-full" />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent"></div>
+            </div>
             {/* Decorative Blobs */}
             <div className="absolute top-0 -left-48 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob"></div>
             <div className="absolute top-0 -right-48 w-96 h-96 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
@@ -249,7 +255,7 @@ const Home = () => {
 
             {/* Content Container */}
             <div className="relative z-10 space-y-8 p-4 md:p-8">
-                <h1 className="text-5xl font-extrabold text-slate-900 text-center tracking-tight">Welcome to the Library</h1>
+                <h1 className="text-5xl font-extrabold text-black text-center tracking-tight">Welcome to the Library</h1>
 
                 {/* DESIGN: Search bar with glassmorphism effect. Sticky for better UX. */}
                 <div className="p-4 bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg sticky top-4 z-20 border border-white/30">
