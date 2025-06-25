@@ -3,3 +3,8 @@
 button{
     cursor: pointer;
 }
+
+/* Target the menu list component from react-select */
+.select__menu-list {
+  max-height: 200px !important; /* Adjust the height as needed */
+}

@@ -12,7 +12,7 @@ const BookCard = ({ book }) => {
         // DESIGN: Applied glassmorphism effect. Semi-transparent background, backdrop blur, subtle border, and a softer shadow.
         <div className="bg-[#eeeaeaad] backdrop-blur-lg rounded-xl shadow-lg overflow-hidden transition-transform transform hover:-translate-y-2 h-full flex flex-col justify-between border border-white/20">
             <div className="p-6">
-                <h3 className="text-xl font-bold text-black mb-2" title={book.title}>
+                <h3 className="text-xl font-bold text-black mb-2 text-balance" title={book.title}>
                     {book.title}
                 </h3>
             </div>

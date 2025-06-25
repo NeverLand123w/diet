@@ -145,81 +145,83 @@ const Admin = () => {
     const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+        <div className="">
             {isModalOpen && <EditBookModal book={editingBook} allCategories={categories} onClose={handleModalClose} onSave={handleModalSave} />}
-            <h1 className="text-4xl font-bold text-gray-900">Admin Dashboard</h1>
+            <div className="p-4 sm:p-6 lg:p-8 space-y-8">
+                <h1 className="text-4xl font-bold text-gray-900">Admin Dashboard</h1>
 
-            <div className="grid md:grid-cols-2 gap-8">
-                <div className="p-6 bg-white rounded-lg shadow-md">
-                    <h2 className="text-2xl font-bold mb-4 text-gray-700">Manage Categories</h2>
-                    <form onSubmit={handleAddCategory} className="flex gap-2 mb-4">
-                        <input type="text" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="flex-grow w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500" />
-                        <button type="submit" className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Add</button>
-                    </form>
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                        {categories.length > 0 ? categories.map(cat => (
-                            <div key={cat.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                                {editingCategory?.id === cat.id ? (
-                                    <input type="text" value={editingCategory.name} onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })} onBlur={handleRenameCategory} onKeyDown={(e) => e.key === 'Enter' && handleRenameCategory()} autoFocus className="w-full px-2 py-1 border rounded-md" />
-                                ) : (
-                                    <span className="flex-grow text-gray-800" onDoubleClick={() => setEditingCategory(cat)} title="Double-click to edit">{cat.name}</span>
-                                )}
-                                <div className="flex gap-3 ml-4 flex-shrink-0">
-                                    <button onClick={() => setEditingCategory(cat)} className="text-sm text-blue-500 hover:underline">Rename</button>
-                                    <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-500 hover:underline">Delete</button>
+                <div className="grid md:grid-cols-2 gap-8">
+                    <div className="p-6 bg-white rounded-lg shadow-md">
+                        <h2 className="text-2xl font-bold mb-4 text-gray-700">Manage Categories</h2>
+                        <form onSubmit={handleAddCategory} className="flex gap-2 mb-4">
+                            <input type="text" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="flex-grow w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500" />
+                            <button type="submit" className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Add</button>
+                        </form>
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            {categories.length > 0 ? categories.map(cat => (
+                                <div key={cat.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                    {editingCategory?.id === cat.id ? (
+                                        <input type="text" value={editingCategory.name} onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })} onBlur={handleRenameCategory} onKeyDown={(e) => e.key === 'Enter' && handleRenameCategory()} autoFocus className="w-full px-2 py-1 border rounded-md" />
+                                    ) : (
+                                        <span className="flex-grow text-gray-800" onDoubleClick={() => setEditingCategory(cat)} title="Double-click to edit">{cat.name}</span>
+                                    )}
+                                    <div className="flex gap-3 ml-4 flex-shrink-0">
+                                        <button onClick={() => setEditingCategory(cat)} className="text-sm text-blue-500 hover:underline">Rename</button>
+                                        <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-500 hover:underline">Delete</button>
+                                    </div>
                                 </div>
-                            </div>
-                        )) : <p className="text-sm text-gray-500 text-center py-4">No categories found. Add one above.</p>}
+                            )) : <p className="text-sm text-gray-500 text-center py-4">No categories found. Add one above.</p>}
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-lg shadow-md">
+                        <h2 className="text-2xl font-bold mb-4 text-gray-700">Add a New Book</h2>
+                        <form id="new-book-form" onSubmit={handleAddBook} className="space-y-4">
+                            <input type="text" placeholder="Title*" value={newBook.title} onChange={(e) => setNewBook({ ...newBook, title: e.target.value })} required className="w-full px-4 py-2 border rounded-md" />
+                            <input type="text" placeholder="Author" value={newBook.author} onChange={(e) => setNewBook({ ...newBook, author: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
+                            <input type="text" placeholder="Book Number" value={newBook.bookNumber} onChange={(e) => setNewBook({ ...newBook, bookNumber: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
+                            <div><label className="block text-sm font-medium text-gray-700 mb-1">Categories</label><Select isMulti options={categoryOptions} value={newBookCategories} onChange={setNewBookCategories} className="mt-1" classNamePrefix="select" placeholder="Assign categories..." /></div>
+                            <div><label className="block text-sm font-medium text-gray-700 mb-1">Add PDF (Optional)</label><input type="file" accept=".pdf" onChange={(e) => setNewPdfFile(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-gray-50 hover:file:bg-gray-100" /></div>
+                            <button type="submit" disabled={uploading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400">{uploading ? 'Adding...' : 'Add Book'}</button>
+                        </form>
                     </div>
                 </div>
 
-                <div className="p-6 bg-white rounded-lg shadow-md">
-                    <h2 className="text-2xl font-bold mb-4 text-gray-700">Add a New Book</h2>
-                    <form id="new-book-form" onSubmit={handleAddBook} className="space-y-4">
-                        <input type="text" placeholder="Title*" value={newBook.title} onChange={(e) => setNewBook({ ...newBook, title: e.target.value })} required className="w-full px-4 py-2 border rounded-md" />
-                        <input type="text" placeholder="Author" value={newBook.author} onChange={(e) => setNewBook({ ...newBook, author: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
-                        <input type="text" placeholder="Book Number" value={newBook.bookNumber} onChange={(e) => setNewBook({ ...newBook, bookNumber: e.target.value })} className="w-full px-4 py-2 border rounded-md" />
-                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Categories</label><Select isMulti options={categoryOptions} value={newBookCategories} onChange={setNewBookCategories} className="mt-1" classNamePrefix="select" placeholder="Assign categories..." /></div>
-                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Add PDF (Optional)</label><input type="file" accept=".pdf" onChange={(e) => setNewPdfFile(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-gray-50 hover:file:bg-gray-100" /></div>
-                        <button type="submit" disabled={uploading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400">{uploading ? 'Adding...' : 'Add Book'}</button>
-                    </form>
-                </div>
-            </div>
+                <div className="p-6 bg-white rounded-lg shadow-md"><h2 className="text-2xl font-bold mb-4">Bulk Import Books</h2><p className="text-sm text-gray-600 mb-3">Upload an Excel file (.xlsx) to add or update books. This will process in batches.</p><input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} disabled={isImporting} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-teal-50 hover:file:bg-teal-100" />{isImporting && (<div className="mt-4"><p className="text-blue-600 font-semibold text-center mb-2">Importing... Please do not close this window.</p><div className="w-full bg-gray-200 rounded-full h-4"><div className="bg-indigo-600 h-4 rounded-full transition-all duration-300" style={{ width: `${(importProgress / importTotal) * 100}%` }}></div></div><p className="text-sm text-gray-600 text-center mt-1">{importProgress} / {importTotal} records processed</p></div>)}</div>
 
-            <div className="p-6 bg-white rounded-lg shadow-md"><h2 className="text-2xl font-bold mb-4">Bulk Import Books</h2><p className="text-sm text-gray-600 mb-3">Upload an Excel file (.xlsx) to add or update books. This will process in batches.</p><input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} disabled={isImporting} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-teal-50 hover:file:bg-teal-100" />{isImporting && (<div className="mt-4"><p className="text-blue-600 font-semibold text-center mb-2">Importing... Please do not close this window.</p><div className="w-full bg-gray-200 rounded-full h-4"><div className="bg-indigo-600 h-4 rounded-full transition-all duration-300" style={{ width: `${(importProgress / importTotal) * 100}%` }}></div></div><p className="text-sm text-gray-600 text-center mt-1">{importProgress} / {importTotal} records processed</p></div>)}</div>
-
-            <div>
-                <div className="manage-top flex flex-col md:flex-row justify-between gap-4 w-full items-center mb-6 p-6 bg-white rounded-lg shadow-md">
-                    <h2 className="text-2xl font-bold text-gray-700 w-full md:w-auto flex-shrink-0">Manage Books ({pagination.totalBooks || 0} total)</h2>
-                    <div className="w-full md:w-auto md:min-w-[200px]"><select value={selectedCategory} onChange={handleCategoryFilterChange} className="w-full px-4 py-2 border rounded-md bg-white text-base"><option value="">Filter by All Categories</option>{categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}</select></div>
-                    <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full md:flex-grow"><input type="text" placeholder="Search title, author, or number..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-grow w-full px-4 py-2 border rounded-md" /><button type="button" onClick={handleClearFilters} className="bg-gray-500 text-white font-bold py-2 px-4 rounded-md">Clear</button></form>
-                </div>
-                {isLoading ? (<div className="text-center p-10">Loading books...</div>) : (books.length > 0 ? (
-                    <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {books.map((book) => (
-                                <div key={book.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col justify-between">
-                                    <div className="p-4 flex-grow">
-                                        <h3 className="font-bold text-lg text-gray-900 truncate" title={book.title}>{book.title}</h3>
-                                        <p className="text-sm text-gray-600">by {book.author || 'N/A'}</p>
-                                        {book.bookNumber && <p className="text-xs text-gray-500 mt-1">Number: {book.bookNumber}</p>}
-                                        <div className="flex flex-wrap gap-1 mt-2">
-                                            {book.category_names?.split(',').map(name => name && <span key={name} className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">{name}</span>)}
+                <div>
+                    <div className="manage-top flex flex-col md:flex-row justify-between gap-4 w-full items-center mb-6 p-6 bg-white rounded-lg shadow-md">
+                        <h2 className="text-2xl font-bold text-gray-700 w-full md:w-auto flex-shrink-0">Manage Books ({pagination.totalBooks || 0} total)</h2>
+                        <div className="w-full md:w-auto md:min-w-[200px]"><select value={selectedCategory} onChange={handleCategoryFilterChange} className="w-full px-4 py-2 border rounded-md bg-white text-base"><option value="">Filter by All Categories</option>{categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}</select></div>
+                        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full md:flex-grow"><input type="text" placeholder="Search title, author, or number..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-grow w-full px-4 py-2 border rounded-md" /><button type="button" onClick={handleClearFilters} className="bg-gray-500 text-white font-bold py-2 px-4 rounded-md">Clear</button></form>
+                    </div>
+                    {isLoading ? (<div className="text-center p-10">Loading books...</div>) : (books.length > 0 ? (
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {books.map((book) => (
+                                    <div key={book.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col justify-between">
+                                        <div className="p-4 flex-grow">
+                                            <h3 className="font-bold text-lg text-gray-900 truncate" title={book.title}>{book.title}</h3>
+                                            <p className="text-sm text-gray-600">by {book.author || 'N/A'}</p>
+                                            {book.bookNumber && <p className="text-xs text-gray-500 mt-1">Number: {book.bookNumber}</p>}
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {book.category_names?.split(',').map(name => name && <span key={name} className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">{name}</span>)}
+                                            </div>
+                                        </div>
+                                        <div className={`p-4 flex items-center justify-between ${!book.pdfUrl ? 'bg-red-50' : 'bg-green-50'}`}>
+                                            <span className={`text-sm font-semibold ${!book.pdfUrl ? 'text-red-700' : 'text-green-700'}`}>{!book.pdfUrl ? 'No PDF' : 'Has PDF'}</span>
+                                            <div className="flex-shrink-0 flex gap-2">
+                                                <button onClick={() => handleEditClick(book)} className="bg-yellow-400 text-white font-bold py-1 px-3 rounded hover:bg-yellow-500">Edit</button>
+                                                <button onClick={() => handleDeleteBook(book.id)} className="bg-red-600 text-white font-bold py-1 px-3 rounded hover:bg-red-700">Delete</button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className={`p-4 flex items-center justify-between ${!book.pdfUrl ? 'bg-red-50' : 'bg-green-50'}`}>
-                                        <span className={`text-sm font-semibold ${!book.pdfUrl ? 'text-red-700' : 'text-green-700'}`}>{!book.pdfUrl ? 'No PDF' : 'Has PDF'}</span>
-                                        <div className="flex-shrink-0 flex gap-2">
-                                            <button onClick={() => handleEditClick(book)} className="bg-yellow-400 text-white font-bold py-1 px-3 rounded hover:bg-yellow-500">Edit</button>
-                                            <button onClick={() => handleDeleteBook(book.id)} className="bg-red-600 text-white font-bold py-1 px-3 rounded hover:bg-red-700">Delete</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={handlePageChange} />
-                    </>
-                ) : <p className="text-center p-10 text-gray-500">No books found matching your filters.</p>)}
+                                ))}
+                            </div>
+                            <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} onPageChange={handlePageChange} />
+                        </>
+                    ) : <p className="text-center p-10 text-gray-500">No books found matching your filters.</p>)}
+                </div>
             </div>
         </div>
     );

@@ -44,6 +44,14 @@ export const EditBookModal = ({ book, allCategories, onClose, onSave }) => {
     const handleInputChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
+
+    const customStyles = {
+        menuList: (base) => ({
+            ...base,
+            // Set the max-height of the dropdown menu
+            maxHeight: '200px', // or any other value you prefer
+        })
+    };
     
     // --- HANDLER FOR THE MAIN "SAVE CHANGES" BUTTON ---
     const handleSubmit = async (e) => {
@@ -126,8 +134,8 @@ export const EditBookModal = ({ book, allCategories, onClose, onSave }) => {
     const categoryOptions = allCategories.map(c => ({ value: c.id, label: c.name }));
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-[999]" onClick={onClose}>
+            <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg max-h-[100vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">Edit Book</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-800 text-3xl leading-none font-bold">×</button>
@@ -158,6 +166,7 @@ export const EditBookModal = ({ book, allCategories, onClose, onSave }) => {
                             className="mt-1"
                             classNamePrefix="select"
                             placeholder="Select categories..."
+                             styles={customStyles}
                         />
                     </div>
                     
