@@ -244,7 +244,7 @@ const Home = () => {
         // DESIGN: Main container with a decorative background gradient and blur "blobs" for visual interest.
         <div className="min-h-screen bg-slate-50 relative overflow-hidden">
             <div className="absolute w-full">
-                <img src="./images/diet.jpg" className="w-full" />
+                <img src="./images/diet.webp" className="w-full" />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent"></div>
             </div>

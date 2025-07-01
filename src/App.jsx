@@ -4,11 +4,13 @@ import Home from './pages/Home';
 import Admin from './pages/Admin';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import LocomotiveScroll from 'locomotive-scroll';
+
 
 function App() {
     const navigate = useNavigate();
     const location = useLocation();
-    
+
     // The source of truth for the login state
     const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('admin_token'));
 
@@ -22,6 +24,8 @@ function App() {
         setIsLoggedIn(false);
         navigate('/'); // Redirect to homepage
     };
+    const locomotiveScroll = new LocomotiveScroll();
+
 
     return (
         <div data-scroll data-scroll-section className="bg-gray-100 min-h-screen font-sans">
@@ -29,10 +33,12 @@ function App() {
                 <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex-shrink-0">
-                            <Link to="/" className="text-2xl font-bold text-indigo-600 hover:text-indigo-800">DIET</Link>
+                            <Link to="/" className="text-2xl font-bold text-indigo-600 hover:text-indigo-800">DIET DEHRADUN</Link>
                         </div>
                         <div className="flex items-center space-x-4">
                             <Link to="/" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</Link>
+                            <Link to="https://forms.gle/cpjDKGqiKVaRit4VA" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Suggestion</Link>
+
                             {/* --- CONDITIONAL LOGIC --- */}
                             {isLoggedIn ? (
                                 <>
@@ -54,17 +60,17 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     {/* --- THIS IS THE CORRECT WAY TO RENDER LOGIN --- */}
-                    <Route 
-                        path="/login" 
-                        element={<LoginPage onLoginSuccess={() => setIsLoggedIn(true)} />} 
+                    <Route
+                        path="/login"
+                        element={<LoginPage onLoginSuccess={() => setIsLoggedIn(true)} />}
                     />
-                    <Route 
-                        path="/admin" 
+                    <Route
+                        path="/admin"
                         element={
                             <ProtectedRoute>
                                 <Admin />
                             </ProtectedRoute>
-                        } 
+                        }
                     />
                 </Routes>
             </main>
