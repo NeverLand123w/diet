@@ -101,6 +101,40 @@ const Admin = () => {
     const [importProgress, setImportProgress] = useState(0);
     const [importTotal, setImportTotal] = useState(0);
 
+    // --- NEW STATE FOR VIDEOS ---
+    const [videos, setVideos] = useState([]);
+    const [newVideo, setNewVideo] = useState({ title: '', youtube_url: '', academic_year: '2024-25' });
+    const [submittingVideo, setSubmittingVideo] = useState(false);
+    const [editingVideo, setEditingVideo] = useState(null);
+    const [editingYear, setEditingYear] = useState(null);
+    const [uniqueYears, setUniqueYears] = useState([]);
+
+    const fetchVideos = async () => {
+        try {
+            const response = await axios.get('/api/books?type=videos');
+            setVideos(response.data.data);
+
+            // --- NEW: Derive unique years from the video data ---
+            const years = [...new Set(response.data.data.map(video => video.academic_year))];
+            // Sort them in descending order (e.g., '2024-25' comes before '2023-24')
+            years.sort((a, b) => b.localeCompare(a));
+            setUniqueYears(years);
+
+            // Set default year for the 'add' form to the latest one, if it exists
+            if (years.length > 0) {
+                setNewVideo(prev => ({ ...prev, academic_year: years[0] }));
+            }
+
+        } catch (error) {
+            console.error("Error fetching videos:", error);
+        }
+    };
+
+    // Fetch both books and videos on component mount
+    useEffect(() => {
+        fetchVideos();
+    }, []);
+
     // Filter states
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
@@ -144,11 +178,174 @@ const Admin = () => {
     const handleModalSave = () => { handleModalClose(); fetchData(searchQuery, selectedCategory, pagination.page); };
     const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
 
+
+    // --- NEW HANDLERS FOR VIDEOS ---
+    const handleAddVideo = async (e) => {
+        e.preventDefault();
+        setSubmittingVideo(true);
+        try {
+            await axios.post('/api/books?type=videos', newVideo);
+            alert('Video added successfully!');
+            setNewVideo({ title: '', youtube_url: '', academic_year: '2024-25' }); // Reset form
+            fetchVideos(); // Refresh list
+        } catch (error) {
+            const errorMsg = error.response?.data?.error || "Could not add video.";
+            alert(`Error: ${errorMsg}`);
+        } finally {
+            setSubmittingVideo(false);
+        }
+    };
+
+    const handleDeleteVideo = async (videoId) => {
+        if (window.confirm("Are you sure you want to delete this video?")) {
+            try {
+                await axios.delete(`/api/books?type=videos&id=${videoId}`);
+                alert('Video deleted successfully.');
+                fetchVideos(); // Refresh list
+            } catch (error) {
+                alert("Could not delete video.");
+            }
+        }
+    };
+
+    const handleUpdateVideo = async (e) => {
+        e.preventDefault();
+        if (!editingVideo) return;
+
+        try {
+            await axios.put(`/api/books?type=videos&id=${editingVideo.id}`, editingVideo);
+            alert('Video updated successfully!');
+            setEditingVideo(null); // Close the edit form
+            fetchVideos(); // Refresh the list
+        } catch (error) {
+            const errorMsg = error.response?.data?.error || "Could not update video.";
+            alert(`Error: ${errorMsg}`);
+        }
+    };
+
+    const renderVideoEditForm = () => (
+        <div className="my-8 p-6 bg-yellow-100 border border-yellow-300 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold mb-4">Editing Video: <span className="text-indigo-600">{editingVideo.title}</span></h3>
+            <form onSubmit={handleUpdateVideo} className="space-y-4">
+                <input
+                    type="text"
+                    placeholder="Video Title"
+                    value={editingVideo.title}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, title: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border rounded-md"
+                />
+                <input
+                    type="url"
+                    placeholder="YouTube URL"
+                    value={editingVideo.youtube_url}
+                    onChange={(e) => setEditingVideo({ ...editingVideo, youtube_url: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border rounded-md"
+                />
+                {/* --- The 'academic_year' field is now a TEXT INPUT --- */}
+                <div>
+                    <label htmlFor="edit_academic_year" className="block text-sm font-medium text-gray-700">Academic Year (e.g., 2024-25)</label>
+                    <input
+                        id="edit_academic_year"
+                        type="text"
+                        placeholder="e.g., 2024-25"
+                        value={editingVideo.academic_year}
+                        onChange={(e) => setEditingVideo({ ...editingVideo, academic_year: e.target.value })}
+                        required
+                        className="w-full px-4 py-2 border rounded-md"
+                    />
+                </div>
+                <div className="flex items-center gap-4">
+                    <button type="submit" className="bg-green-500 text-white font-bold py-2 px-4 rounded hover:bg-green-600">Save Changes</button>
+                    <button type="button" onClick={() => setEditingVideo(null)} className="bg-gray-500 text-white font-bold py-2 px-4 rounded hover:bg-gray-600">Cancel</button>
+                </div>
+            </form>
+        </div>
+    );
+
     return (
         <div className="">
             {isModalOpen && <EditBookModal book={editingBook} allCategories={categories} onClose={handleModalClose} onSave={handleModalSave} />}
             <div className="p-4 sm:p-6 lg:p-8 space-y-8">
                 <h1 className="text-4xl font-bold text-gray-900">Admin Dashboard</h1>
+
+                {/* --- NEW VIDEO MANAGEMENT SECTION --- */}
+                <section>
+                    <h2 className="text-2xl font-bold mb-4">Manage E-Content (Videos)</h2>
+
+                    {editingVideo ? renderVideoEditForm() : (
+                        <div className="mb-8 p-6 bg-white rounded-lg shadow-md">
+                            <h3 className="text-xl font-bold mb-4">Add a New Video</h3>
+                            <form onSubmit={handleAddVideo} className="space-y-4">
+                                <div>
+                                    <label htmlFor="video_title" className="block text-sm font-medium text-gray-700">Video Title</label>
+                                    <input type="text" id="video_title" value={newVideo.title} onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })} required className="w-full px-4 py-2 border rounded-md" />
+                                </div>
+                                <div>
+                                    <label htmlFor="video_url" className="block text-sm font-medium text-gray-700">YouTube URL</label>
+                                    <input type="url" id="video_url" value={newVideo.youtube_url} onChange={(e) => setNewVideo({ ...newVideo, youtube_url: e.target.value })} required className="w-full px-4 py-2 border rounded-md" />
+                                </div>
+                                <div>
+                                    <label htmlFor="academic_year" className="block text-sm font-medium text-gray-700">Academic Year (e.g., 2024-25)</label>
+                                    <input
+                                        id="academic_year"
+                                        type="text"
+                                        list="year-suggestions"
+                                        placeholder="Start typing or select..."
+                                        value={newVideo.academic_year}
+                                        onChange={(e) => setNewVideo({ ...newVideo, academic_year: e.target.value })}
+                                        required
+                                        className="w-full px-4 py-2 border rounded-md"
+                                    />
+                                    <datalist id="year-suggestions">
+                                        {uniqueYears.map(year => (
+                                            <option key={year} value={year} />
+                                        ))}
+                                    </datalist>
+                                </div>
+                                <button type="submit" disabled={submittingVideo} className="bg-green-500 text-white font-bold py-2 px-4 rounded hover:bg-green-600 disabled:bg-gray-400">
+                                    {submittingVideo ? 'Adding...' : 'Add Video'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* This part (the list) is ALWAYS rendered */}
+                    <div>
+                        <h3 className="text-xl font-bold mb-4">Existing Videos</h3>
+                        <div className="space-y-3">
+                            {videos.map((video) => (
+                                <div key={video.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow">
+                                    <div>
+                                        <p className="font-semibold">{video.title}</p>
+                                        <p className="text-sm text-gray-500">{video.academic_year}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                console.log("Edit button clicked for video:", video);
+                                                setEditingVideo(video);
+                                            }}
+                                            className="bg-yellow-400 text-white font-bold py-1 px-3 rounded hover:bg-yellow-500"
+                                            disabled={!!editingVideo}
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteVideo(video.id)}
+                                            className="bg-red-500 text-white font-bold py-1 px-3 rounded hover:bg-red-600"
+                                            disabled={!!editingVideo}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
 
                 <div className="grid md:grid-cols-2 gap-8">
                     <div className="p-6 bg-white rounded-lg shadow-md">

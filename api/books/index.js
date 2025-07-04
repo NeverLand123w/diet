@@ -54,8 +54,48 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') return res.status(200).end();
+    const { type, id } = req.query; // Check for a 'type' parameter
+
 
     try {
+        // --- VIDEO CONTENT LOGIC ---
+        if (type === 'videos') {
+            if (req.method === 'GET') {
+                const result = await turso.execute('SELECT * FROM videos ORDER BY academic_year DESC, title ASC');
+                return res.status(200).json({ data: result.rows });
+            }
+            if (req.method === 'PUT') {
+                if (!id) return res.status(400).json({ error: 'Video ID is required' });
+
+                const { title, youtube_url, academic_year } = await parseJsonBody(req);
+
+                if (!title || !youtube_url || !academic_year) {
+                    return res.status(400).json({ error: 'Title, URL, and Academic Year are required.' });
+                }
+
+                await turso.execute({
+                    sql: 'UPDATE videos SET title = ?, youtube_url = ?, academic_year = ? WHERE id = ?',
+                    args: [title, youtube_url, academic_year, id],
+                });
+
+                return res.status(200).json({ message: 'Video updated successfully' });
+            }
+            
+            if (req.method === 'POST') {
+                const { title, youtube_url, academic_year } = await parseJsonBody(req);
+                await turso.execute({
+                    sql: 'INSERT INTO videos (title, youtube_url, academic_year) VALUES (?, ?, ?)',
+                    args: [title, youtube_url, academic_year],
+                });
+                return res.status(201).json({ message: 'Video added successfully' });
+            }
+            if (req.method === 'DELETE') {
+                if (!id) return res.status(400).json({ error: 'Video ID is required' });
+                await turso.execute({ sql: 'DELETE FROM videos WHERE id = ?', args: [id] });
+                return res.status(200).json({ message: 'Video deleted successfully' });
+            }
+        }
+
         // This block goes inside the 'try' of your main handler function
         if (req.method === 'GET') {
             const { q, categoryId, page = 1, limit = 12 } = req.query;

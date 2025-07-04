@@ -3,9 +3,9 @@ import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import LoginPage from './pages/LoginPage';
+import EContent from './pages/EContent';
 import ProtectedRoute from './components/ProtectedRoute';
 import LocomotiveScroll from 'locomotive-scroll';
-
 
 function App() {
     const navigate = useNavigate();
@@ -37,6 +37,7 @@ function App() {
                         </div>
                         <div className="flex items-center space-x-4">
                             <Link to="/" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</Link>
+                            <Link to="/e-content" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">E-Content</Link>
                             <Link to="https://forms.gle/cpjDKGqiKVaRit4VA" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Suggestion</Link>
 
                             {/* --- CONDITIONAL LOGIC --- */}
@@ -59,6 +60,7 @@ function App() {
             <main data-scroll data-scroll-section className="w-full">
                 <Routes>
                     <Route path="/" element={<Home />} />
+                    <Route path="/e-content" element={<EContent />} />
                     {/* --- THIS IS THE CORRECT WAY TO RENDER LOGIN --- */}
                     <Route
                         path="/login"
