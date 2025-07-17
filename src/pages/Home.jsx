@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSearchParams, Link } from 'react-router-dom';
 import './Home.css';
+import { Helmet } from 'react-helmet';
+
 
 
 // ================================================================================= //
 // 1. BookCard Component (Styled with Glassmorphism)
 // ================================================================================= //
+
 
 const BookCard = ({ book }) => {
     return (
@@ -240,9 +243,38 @@ const Home = () => {
         books: allBooks.filter(book => book.category_ids?.toString().split(',').includes(String(category.id)))
     }));
 
+    // --- NEW: SEO DYNAMIC CONTENT LOGIC ---
+    let pageTitle = "DIET Dehradun E-Library";
+    let pageDescription = "Explore the official digital library of DIET Dehradun. Access a vast collection of free e-books, NCERT/SCERT texts, and educational materials. Search by title or browse by category.";
+
+    // If a category filter is active, create more specific SEO tags.
+    if (currentCategory && categories.length > 0) {
+        const categoryName = categories.find(c => c.id == currentCategory)?.name;
+        if (categoryName) {
+            pageTitle = `${categoryName} Books | DIET Dehradun E-Library`;
+            pageDescription = `Browse and read free e-books from the ${categoryName} category. Discover educational resources in the official DIET Dehradun digital collection.`;
+        }
+    }
+    // If a search filter is active, create a dynamic title for the search results page.
+    else if (currentSearch) {
+        pageTitle = `Search Results for "${currentSearch}" | DIET Dehradun E-Library`;
+        pageDescription = `Find books and resources matching "${currentSearch}" in the DIET Dehradun digital library.`;
+    }
+
     return (
         // DESIGN: Main container with a decorative background gradient and blur "blobs" for visual interest.
         <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+            <Helmet>
+                <title>{pageTitle}</title>
+                <meta name="description" content={pageDescription} />
+
+                {/* These will also update dynamically for social sharing */}
+                <meta property="og:title" content={pageTitle} />
+                <meta property="og:description" content={pageDescription} />
+                <meta name="twitter:title" content={pageTitle} />
+                <meta name="twitter:description" content={pageDescription} />
+            </Helmet>
+
             <div className="absolute w-full">
                 <img src="./images/diet.webp" className="w-full" />
 

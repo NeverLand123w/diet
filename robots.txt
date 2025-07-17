@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Disallow crawlers from indexing admin-related pages
+Disallow: /admin
+Disallow: /login
