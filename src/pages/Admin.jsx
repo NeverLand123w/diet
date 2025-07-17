@@ -164,7 +164,35 @@ const Admin = () => {
 
     // --- HANDLERS ---
     const handleAddCategory = async (e) => { e.preventDefault(); if (!newCategoryName.trim()) return; try { await secureApi.post('/categories', { name: newCategoryName }); setNewCategoryName(''); fetchData(searchQuery, selectedCategory, pagination.page); } catch (error) { alert(`Failed to add category: ${error.response?.data?.message || error.message}`); } };
-    const handleRenameCategory = async () => { if (!editingCategory?.name.trim()) { setEditingCategory(null); return; } try { await secureApi.put('/categories', editingCategory); setEditingCategory(null); fetchData(searchQuery, selectedCategory, pagination.page); } catch (error) { alert("Failed to rename category."); } };
+    // ... inside the Admin component
+
+    const handleRenameCategory = async () => {
+        // Exit if there's no category being edited or if the new name is just empty spaces.
+        if (!editingCategory || !editingCategory.name.trim()) {
+            setEditingCategory(null);
+            return;
+        }
+
+        try {
+            // This is the data object the backend is expecting. It MUST have 'id' and 'name'.
+            const payload = {
+                id: editingCategory.id,
+                name: editingCategory.name.trim()
+            };
+
+            // This sends a PUT request to `/api/categories` with the payload in the request body.
+            await secureApi.put('/categories', payload);
+
+            setEditingCategory(null); // Clear the editing state on success
+            // Refresh data (your existing logic is correct)
+            fetchData(searchQuery, selectedCategory, pagination.page);
+        } catch (error) {
+            console.error("Failed to rename category:", error);
+            const serverError = error.response?.data?.error || error.response?.data?.details || error.message;
+            alert(`Failed to rename category. Reason: ${serverError}`);
+        }
+    }; 
+    
     const handleDeleteCategory = async (categoryId) => { if (window.confirm("Are you sure? This will remove the category from all books.")) { try { await secureApi.delete('/categories', { data: { id: categoryId } }); fetchData(searchQuery, selectedCategory, 1); } catch (error) { alert("Failed to delete category."); } } };
     const handleDeleteBook = async (bookId) => { if (window.confirm("Are you sure?")) { try { await secureApi.delete(`/books?id=${bookId}`); fetchData(searchQuery, selectedCategory, pagination.page); } catch (error) { alert(`Error deleting book: ${error.response?.data?.message || error.message}`); } } };
     const handleAddBook = async (e) => { e.preventDefault(); if (!newBook.title.trim()) return alert("Title is required."); setUploading(true); const payload = { ...newBook, categoryIds: newBookCategories.map(c => c.value) }; try { if (newPdfFile) { const formData = new FormData(); formData.append('file', newPdfFile); formData.append('upload_preset', 'ml_default'); const url = `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/raw/upload`; const res = await axios.post(url, formData); payload.pdfUrl = res.data.secure_url; payload.publicId = res.data.public_id; } await secureApi.post('/books', payload); alert("Book added!"); setNewBook({ title: '', author: '', bookNumber: '' }); setNewBookCategories([]); setNewPdfFile(null); document.getElementById('new-book-form')?.reset(); fetchData('', '', 1); } catch (error) { alert(`Error adding book: ${error.response?.data?.message || error.message}`); } finally { setUploading(false); } };

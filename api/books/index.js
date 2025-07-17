@@ -80,7 +80,7 @@ export default async function handler(req, res) {
 
                 return res.status(200).json({ message: 'Video updated successfully' });
             }
-            
+
             if (req.method === 'POST') {
                 const { title, youtube_url, academic_year } = await parseJsonBody(req);
                 await turso.execute({
@@ -194,45 +194,55 @@ export default async function handler(req, res) {
 
         if (req.method === 'PUT') {
             const bookId = req.query.id;
-            if (!bookId) return res.status(400).json({ error: 'Book ID is required.' });
+            if (!bookId) {
+                return res.status(400).json({ error: 'Book ID is required for an update.' });
+            }
 
             const payload = await parseJsonBody(req);
 
+            // Start a database transaction for safety
             const tx = await turso.transaction('write');
             try {
                 // --- STEP 1: Determine the final state of PDF fields ---
-                let finalPdfUrl = payload.pdfUrl;
-                let finalPublicId = payload.publicId;
 
-                // Scenario: User clicked "Remove PDF".
-                // The frontend sends pdfUrl: null and an oldPublicId.
+                // This is a special signal from the frontend to remove the PDF
                 if (payload.pdfUrl === null && payload.oldPublicId) {
+                    // A. User wants to DELETE the existing PDF
                     await cloudinary.uploader.destroy(payload.oldPublicId, { resource_type: "raw" });
-                    // Final state is NULL for PDF fields.
-                    finalPdfUrl = null;
-                    finalPublicId = null;
-                }
-                // Scenario: User uploaded a NEW file to replace an old one.
-                else if (payload.pdfUrl && payload.oldPublicId) {
-                    await cloudinary.uploader.destroy(payload.oldPublicId, { resource_type: "raw" });
-                    // Final state is the new URL/ID. (already set in finalPdfUrl/finalPublicId)
-                }
 
-                // --- STEP 2: Execute a SINGLE, definitive UPDATE statement for the book ---
+                    // Explicitly update the PDF fields to NULL
+                    await tx.execute({
+                        sql: 'UPDATE books SET pdfUrl = NULL, publicId = NULL WHERE id = ?',
+                        args: [bookId]
+                    });
+
+                } else if (payload.pdfUrl && payload.publicId) {
+                    // B. User uploaded a NEW file to ADD or REPLACE
+
+                    // If replacing, delete the old file first
+                    if (payload.oldPublicId) {
+                        await cloudinary.uploader.destroy(payload.oldPublicId, { resource_type: "raw" });
+                    }
+                    // Update with the new PDF info
+                    await tx.execute({
+                        sql: 'UPDATE books SET pdfUrl = ?, publicId = ? WHERE id = ?',
+                        args: [payload.pdfUrl, payload.publicId, bookId]
+                    });
+                }
+                // If neither of the above conditions are met, the PDF is left untouched.
+
+                // --- STEP 2: Execute a simple UPDATE for text-based fields ---
+                // This is separate and clear, preventing conflicts.
                 await tx.execute({
                     sql: `UPDATE books SET 
-                            title = ?, 
-                            author = ?, 
-                            bookNumber = ?,
-                            pdfUrl = ?,
-                            publicId = ?
-                          WHERE id = ?`,
+                    title = ?, 
+                    author = ?, 
+                    bookNumber = ?
+                  WHERE id = ?`,
                     args: [
                         payload.title,
                         payload.author ?? null,
                         payload.bookNumber ?? null,
-                        finalPdfUrl,  // Use the final calculated value
-                        finalPublicId, // Use the final calculated value
                         bookId
                     ],
                 });
@@ -253,6 +263,7 @@ export default async function handler(req, res) {
             } catch (err) {
                 console.error("[PUT_ERROR] Transaction failed:", err);
                 await tx.rollback();
+                // Look at the server-side terminal logs (running 'vercel dev') for the detailed SQL error!
                 throw err;
             }
         }
