@@ -153,7 +153,7 @@ function App() {
                             E-Content
                         </Link>
                         <Link
-                            to="https://forms.gle/cpjDKGqiKVaRit4VA"
+                            to="https://docs.google.com/forms/d/e/1FAIpQLSf1if9ITIeob1MafObMIdOdcXdbaTd2yfvNfs4q1EJs8RmuxQ/viewform?usp=dialog"
                             className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-200"
                             onClick={() => setIsMenuOpen(false)}
                         >
