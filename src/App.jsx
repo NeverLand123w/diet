@@ -24,27 +24,7 @@ function App() {
     const ogImageUrl = `${siteDomain}/logo.png`; // Using your logo as the default share image
 
     // --- Locomotive Scroll Fix ---
-    // Use a ref to ensure Locomotive Scroll is initialized only once
-    const scrollRef = useRef(null);
 
-    useEffect(() => {
-        // Only initialize Locomotive Scroll if the ref is set and it hasn't been done already
-        if (scrollRef.current && !scrollRef.current.locomotiveScrollInstance) {
-            scrollRef.current.locomotiveScrollInstance = new LocomotiveScroll({
-                el: scrollRef.current,
-                smooth: true,
-                // Add any other locomotive-scroll options here
-            });
-        }
-
-        // Cleanup function to destroy the instance when the component unmounts
-        return () => {
-            if (scrollRef.current && scrollRef.current.locomotiveScrollInstance) {
-                scrollRef.current.locomotiveScrollInstance.destroy();
-                scrollRef.current.locomotiveScrollInstance = null;
-            }
-        };
-    }, []); // Empty dependency array means this runs only once on mount
 
     // --- Authentication State Sync ---
     useEffect(() => {
@@ -64,7 +44,7 @@ function App() {
 
     return (
         // The ref is attached to the main scrollable element
-        <div ref={scrollRef} className="bg-gray-100 min-h-screen font-sans">
+        <div className="bg-gray-100 min-h-screen font-sans">
             <Helmet>
                 {/* General SEO tags that apply to the whole site */}
                 <meta name="keywords" content="DIET Dehradun, e-library, online books, educational resources, NCERT, SCERT, digital library" />
