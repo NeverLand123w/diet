@@ -5,7 +5,6 @@ import Admin from './pages/Admin';
 import LoginPage from './pages/LoginPage';
 import EContent from './pages/EContent'; // Assuming you have this page
 import ProtectedRoute from './components/ProtectedRoute';
-import LocomotiveScroll from 'locomotive-scroll';
 
 // Import Helmet for SEO
 import { Helmet } from 'react-helmet';
