@@ -76,7 +76,7 @@ function App() {
                         <div className="hidden md:flex items-center space-x-4">
                             <Link to="/" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</Link>
                             <Link to="/e-content" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">E-Content</Link>
-                            <Link to="https://forms.gle/wv5LxagfcJuXaRBK8" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Suggestion</Link>
+                            <Link to="https://docs.google.com/forms/d/e/1FAIpQLSfnH5stQJWBqm3HT-ROt9dhyFHqnR-yDkAOJ5RW-QvXW5Yqzg/viewform?usp=header" className="text-gray-700 hover:bg-gray-200 px-3 py-2 rounded-md text-sm font-medium">Suggestion</Link>
 
                             {isLoggedIn ? (
                                 <>
